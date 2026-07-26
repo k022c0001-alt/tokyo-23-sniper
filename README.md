@@ -1,33 +1,27 @@
 # tokyo-23-sniper
 ```text
-tokyo-23-sniper/
+components/
+├── map/
+│   ├── MapView.jsx
+│   ├── WardMarker.jsx
+│   └── WardTooltip.jsx
 │
-├── main/                     ⚙️ Electron（デスクトップアプリ）
-│   ├── index.js              # アプリ起動・ウィンドウ管理
-│   └── ipc-bridge.js         # React ⇔ Python 通信
+├── ranking/
+│   ├── RankingList.jsx
+│   ├── RankingCard.jsx
+│   └── RankingItem.jsx
 │
-├── engine/                   🧠 Python（解析エンジン）
-│   ├── sniper_core/
-│   ├── data_models/
-│   ├── utils/
-│   └── app.py
+├── analysis/
+│   ├── SafetyPanel.jsx
+│   ├── ChildcarePanel.jsx
+│   ├── MedicalPanel.jsx
+│   ├── EducationPanel.jsx
+│   └── SummaryPanel.jsx
 │
-├── renderer/                 💎 React（UI）
-│   ├── index.html
-│   └── src/
-│       ├── App.jsx
-│       ├── hooks/
-│       ├── components/
-│       │   ├── core/
-│       │   ├── domain/
-│       │   └── states/
-│       └── styles/
-│
-├── alpha-design/             ✨ Design System
-│   ├── design-tokens.css
-│   ├── animations/
-│   └── assets/
-│
-├── package.json
-└── requirements.txt
+└── common/
+    ├── Button.jsx
+    ├── Card.jsx
+    ├── Chip.jsx
+    ├── Loading.jsx
+    └── EmptyState.jsx
 ```
