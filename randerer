@@ -1,0 +1,72 @@
+import React, { useState, useEffect } from 'react';
+import Header from './components/layout/Header';
+import CriteriaSelector from './components/domain/CriteriaSelector';
+import EmptyState from './components/states/EmptyState';
+import MatchHighlight from './components/domain/MatchHighlight';
+import RankingBoard from './components/domain/RankingBoard';
+
+// FさんのPythonエンジンと通信するための架空のフック（Hooksフォルダに分離想定）
+import { useSniperEngine } from './hooks/useSniperEngine'; 
+
+import './styles/design-tokens.css';
+import './styles/App.css';
+
+export default function App() {
+  // ユーザーが選んだ条件（例: ['hospital', 'nursery']）を管理
+  const [selectedCriteria, setSelectedCriteria] = useState([]);
+  
+  // Pythonから取得したランキングデータを管理
+  const { rankingData, isLoading, fetchRanking } = useSniperEngine();
+
+  // 条件が選ばれるたびに、Fさんのエンジン（Python）に解析を依頼する
+  useEffect(() => {
+    if (selectedCriteria.length > 0) {
+      fetchRanking(selectedCriteria);
+    }
+  }, [selectedCriteria]);
+
+  // チップを押した時の処理（追加・削除）
+  const toggleCriterion = (criterionId) => {
+    setSelectedCriteria(prev => 
+      prev.includes(criterionId)
+        ? prev.filter(id => id !== criterionId) // 既に選ばれていたら外す
+        : [...prev, criterionId]                // 選ばれていなければ足す
+    );
+  };
+
+  return (
+    <div className="app-container">
+      {/* 1. ヘッダー（ロゴやタイトル） */}
+      <Header />
+
+      <main className="main-content">
+        {/* 2. 条件選択チップ（保育、病院などのボタン群） */}
+        <CriteriaSelector 
+          selected={selectedCriteria} 
+          onToggle={toggleCriterion} 
+        />
+
+        {/* 3. メインの表示エリア（条件分岐で出し分け） */}
+        {selectedCriteria.length === 0 ? (
+          // 何も選ばれていない時はEmptyStateを表示
+          <EmptyState />
+        ) : isLoading ? (
+          // Python側が正規化・突合（スナイプ）中のローディング表示
+          <div className="loading-sniper">データを正規化・突合中...</div>
+        ) : (
+          // データ取得完了後の表示
+          <div className="results-area">
+            {/* 💡 アイデア1: 「区1と区15が良い感じ」のハイライト表示 */}
+            <MatchHighlight topWards={rankingData.slice(0, 2)} />
+            
+            {/* 💡 アイデア2: 足し算形式のスコア表示を持つランキング表 */}
+            <RankingBoard 
+              wards={rankingData} 
+              activeCriteria={selectedCriteria} 
+            />
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
