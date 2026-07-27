@@ -1,6 +1,5 @@
 # tokyo-23-sniper
 ```text
-```text
 src/
 │
 ├── components/                 # 画面の見た目（UI）
@@ -31,7 +30,7 @@ src/
 │   └── pillar_scores.json      # 各評価項目のスコア
 │
 └── App.jsx                     # 全体を制御する司令塔
-```
+
 
 components/
 ├── map/
