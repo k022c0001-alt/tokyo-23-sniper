@@ -1,243 +1,278 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { MapView } from './components/MapView';
-import { DistrictDetailCard } from './components/DistrictDetailCard';
-import {
-  CATEGORIES,
-  CATEGORIES_LIST,
-  rankDistrictsByCategory,
-  analyzeDistrict,
-  getCategoryGradient,
-} from './constants/pillarMeta';
-import './LivabilityApp.css';
+import React from 'react';
+import { getGoogleSearchUrl, getGoogleMapsUrl } from '../constants/pillarMeta';
 
-// ----------------------------------------------------------------
-// 🌟 金の紙吹雪（ゴールドコンフェッティ）演出コンポーネント
-// ----------------------------------------------------------------
-function GoldConfetti({ count = 35 }) {
-  // 紙片のランダムパラメータを初期化時に生成
-  const confettiPieces = useMemo(() => {
-    return Array.from({ length: count }).map((_, i) => ({
-      id: i,
-      left: Math.random() * 100, // 画面横位置 (%)
-      sizeWidth: Math.random() * 8 + 6, // 幅 (px)
-      sizeHeight: Math.random() * 14 + 10, // 高さ (px)
-      duration: Math.random() * 4 + 4, // 落ちる速度 (s)
-      delay: Math.random() * 5, // アニメーション開始遅延 (s)
-      rotateStart: Math.random() * 360, // 初期角度
-      skew: Math.random() * 30 - 15, // 歪み
-      // 金色のバリエーション（シャンパンゴールド〜リッチゴールド）
-      bgGradient: i % 3 === 0
-        ? 'linear-gradient(135deg, #ffe066 0%, #d4af37 100%)'
-        : i % 3 === 1
-        ? 'linear-gradient(135deg, #f9d976 0%, #e6c875 50%, #d4af37 100%)'
-        : 'linear-gradient(135deg, #fff3a0 0%, #f1c40f 100%)',
-    }));
-  }, [count]);
+/**
+ * 選択された区の詳細カードコンポーネント（花火・グラスモフィズムテーマ）
+ * 
+ * @param {Object} district - 選択された区のデータ
+ * @param {Object} activeCategory - 現在選択されているカテゴリ情報
+ * @param {Function} onClose - カードを閉じる（選択解除）コールバック関数
+ */
+export function DistrictDetailCard({ district, activeCategory, onClose }) {
+  if (!district) return null;
 
-  return (
-    <div className="gold-confetti-container" aria-hidden="true">
-      {confettiPieces.map((p) => (
-        <div
-          key={p.id}
-          className="gold-confetti-piece"
-          style={{
-            left: `${p.left}%`,
-            width: `${p.sizeWidth}px`,
-            height: `${p.sizeHeight}px`,
-            background: p.bgGradient,
-            animationDuration: `${p.duration}s`,
-            animationDelay: `${p.delay}s`,
-            transform: `rotate(${p.rotateStart}deg) skew(${p.skew}deg)`,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ----------------------------------------------------------------
-// 🏠 メインアプリケーション：LivabilityApp
-// ----------------------------------------------------------------
-export function LivabilityApp({ districtsData = [] }) {
-  // ① 状態管理
-  const [activeCategoryKey, setActiveCategoryKey] = useState('all');
-  const [selectedDistrict, setSelectedDistrict] = useState(null); // 詳細カード表示用
-  const [targetDistrict, setTargetDistrict] = useState(null);     // MapView連動用
-  const [scrollProgress, setScrollProgress] = useState(0);         // 0 (上) ～ 1 (下)
-
-  const mapSectionRef = useRef(null);
-
-  // ② スクロール監視（0～1で進行度を計算）
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollY = window.scrollY;
-      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = Math.min(1, Math.max(0, scrollY / (maxScroll || 1)));
-      setScrollProgress(progress);
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // ③ 選択中カテゴリに基づく23区のスコアリング・ランキング計算
-  const rankedDistricts = useMemo(() => {
-    return rankDistrictsByCategory(districtsData, activeCategoryKey);
-  }, [districtsData, activeCategoryKey]);
-
-  // TOP 3の区を取得
-  const top3 = useMemo(() => rankedDistricts.slice(0, 3), [rankedDistricts]);
-
-  // 現在選択されているカテゴリの定義情報
-  const activeCategory = CATEGORIES[activeCategoryKey] || CATEGORIES.all;
-
-  // ④ イベントハンドラ
-  // カテゴリ変更 ＆ MapViewへのスムーズスクロール
-  const handleSelectCategory = (categoryKey) => {
-    setActiveCategoryKey(categoryKey);
-    mapSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // 各評価指標の日本語ラベルとアイコン設定
+  const pillarLabels = {
+    childcare: { label: '子育て支援', icon: '👶' },
+    park: { label: '公園・自然', icon: '🌳' },
+    disaster: { label: '防災・地盤', icon: '🛡️' },
+    crime: { label: '治安・防犯', icon: '👮' },
+    transit: { label: '交通アクセス', icon: '🚃' },
+    shopping: { label: '買い物利便', icon: '🛍️' },
+    medical: { label: '医療・福祉', icon: '🏥' },
+    cost: { label: 'コスパ・家賃', icon: '💰' },
+    quietness: { label: '閑静さ', icon: '🌙' },
   };
 
-  // TOP3カードクリック時：MapViewへジャンプ＆カード展開
-  const handleTop3Click = (district) => {
-    setTargetDistrict(district);
-    setSelectedDistrict(district);
-    mapSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Google検索を開くハンドラー
+  const handleGoogleSearch = (e) => {
+    e.stopPropagation();
+    const metricLabel = activeCategory?.label || '住みやすさ';
+    const url = getGoogleSearchUrl(district.name, metricLabel);
+    window.open(url, '_blank');
   };
 
-  // 区の分析データ作成（詳細カード用）
-  const analysis = useMemo(() => {
-    return analyzeDistrict(selectedDistrict, districtsData);
-  }, [selectedDistrict, districtsData]);
+  // Googleマップを開くハンドラー
+  const handleGoogleMaps = (e) => {
+    e.stopPropagation();
+    const metricKey = activeCategory?.key || 'park';
+    const url = getGoogleMapsUrl(district.name, metricKey);
+    window.open(url, '_blank');
+  };
+
+  // 点数に応じたネオンカラーの切り替え
+  const getScoreColor = (score) => {
+    if (score >= 90) return '#00ff9f'; // Sランク：エメラルド
+    if (score >= 80) return '#ffd700'; // Aランク：ゴールド
+    if (score >= 70) return '#05d5e7'; // Bランク：シアン
+    return '#ff5e00';                 // Cランク：オレンジ
+  };
 
   return (
-    <div className="livability-app">
-      {/* 🌟 ひらひら舞い落ちる金の紙吹雪 */}
-      <GoldConfetti count={40} />
+    <div
+      style={{
+        position: 'fixed',
+        bottom: '24px',
+        right: '24px',
+        width: 'calc(100% - 48px)',
+        maxWidth: '400px',
+        maxHeight: '85vh',
+        backgroundColor: 'rgba(10, 14, 35, 0.88)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        borderRadius: '24px',
+        border: '1px solid rgba(255, 215, 0, 0.35)',
+        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 215, 0, 0.15)',
+        color: '#ffffff',
+        padding: '24px',
+        boxSizing: 'border-box',
+        zIndex: 100,
+        overflowY: 'auto',
+        fontFamily: "'Hiragino Kaku Gothic ProN', 'メイリオ', sans-serif",
+        animation: 'cardSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+      }}
+    >
+      {/* カード起動時のポップアップアニメーション */}
+      <style>{`
+        @keyframes cardSlideUp {
+          from { transform: translateY(40px) scale(0.95); opacity: 0; }
+          to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        .detail-card-btn {
+          transition: all 0.2s ease;
+        }
+        .detail-card-btn:hover {
+          transform: translateY(-2px);
+          filter: brightness(1.25);
+        }
+      `}</style>
 
-      {/* 1. ヘッダー ＆ カテゴリ選択ナビゲーション */}
-      <header className="app-header">
-        <h1 className="app-title">✨ 東京23区 住みやすさナビ</h1>
-        <p className="app-subtitle">あなたに最適な「街」を、データとインタラクティブ地図で体感</p>
-        
-        <nav className="category-bar">
-          {CATEGORIES_LIST.map((cat) => {
-            const isActive = activeCategoryKey === cat.id;
-            return (
-              <button
-                key={cat.id}
-                className={`cat-btn ${isActive ? 'active' : ''}`}
-                style={isActive ? { background: getCategoryGradient(cat.id) } : {}}
-                onClick={() => handleSelectCategory(cat.id)}
-              >
-                <span className="cat-icon">{cat.icon}</span>
-                <span className="cat-label">{cat.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-      </header>
+      {/* 閉じるボタン */}
+      <button
+        onClick={onClose}
+        style={{
+          position: 'absolute',
+          top: '16px',
+          right: '16px',
+          background: 'rgba(255, 255, 255, 0.1)',
+          border: '1px solid rgba(255, 255, 255, 0.2)',
+          color: '#aaaaaa',
+          fontSize: '16px',
+          width: '32px',
+          height: '32px',
+          borderRadius: '50%',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all 0.2s',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.color = '#ffffff';
+          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.color = '#aaaaaa';
+          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+        }}
+      >
+        ✕
+      </button>
 
-      {/* 2. TOP 3 スポットライトセクション */}
-      <section className="top3-section">
-        <div className="top3-header">
-          <h2>
-            {activeCategory.icon} {activeCategory.label} のおすすめ TOP 3
+      {/* ヘッダーエリア */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '14px' }}>
+        <span style={{ fontSize: '38px', filter: 'drop-shadow(0 0 10px rgba(255, 215, 0, 0.5))' }}>
+          {district.bestEmoji || '✨'}
+        </span>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold', letterSpacing: '1px', color: '#ffffff' }}>
+            {district.name}
           </h2>
-          <p className="category-desc">{activeCategory.desc}</p>
+          <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.5)' }}>
+            行政コード: {district.code}
+          </span>
         </div>
+      </div>
 
-        <div className="top3-grid">
-          {top3.map((district, index) => {
-            const rankNum = index + 1;
-            const rankBadgeText = `第${rankNum}位`;
+      {/* 概要メッセージ */}
+      {district.description && (
+        <p
+          style={{
+            fontSize: '13px',
+            lineHeight: '1.6',
+            color: '#dddddd',
+            marginBottom: '20px',
+            background: 'rgba(255, 255, 255, 0.04)',
+            padding: '10px 14px',
+            borderRadius: '12px',
+            borderLeft: '3px solid #ffd700',
+          }}
+        >
+          {district.description}
+        </p>
+      )}
 
-            return (
-              <div
-                key={district.code}
-                className={`top3-card rank-${rankNum}`}
-                onClick={() => handleTop3Click(district)}
-              >
-                {/* 1位・2位・3位バッジ */}
-                <div className="rank-crown">
-                  {rankNum === 1 ? '👑' : rankNum === 2 ? '🥈' : '🥉'} {rankBadgeText}
-                </div>
+      {/* 選択中モードの強調スコア表示 */}
+      {activeCategory && district.scores && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 42, 109, 0.12))',
+            border: '1px solid rgba(255, 215, 0, 0.4)',
+            borderRadius: '16px',
+            padding: '12px 16px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '20px' }}>{activeCategory.icon}</span>
+            <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{activeCategory.label} スコア</span>
+          </div>
+          <span
+            style={{
+              fontSize: '22px',
+              fontWeight: '900',
+              color: getScoreColor(district.scores[activeCategory.key] || 0),
+              textShadow: '0 0 10px currentColor',
+            }}
+          >
+            {district.scores[activeCategory.key] ?? district.categoryTotalScore ?? '-'} 点
+          </span>
+        </div>
+      )}
 
-                <h3>{district.name}</h3>
+      {/* 各項目のプログレスバーリスト */}
+      <div style={{ marginBottom: '20px' }}>
+        <h3 style={{ fontSize: '13px', color: '#ffd700', margin: '0 0 12px 0', letterSpacing: '0.5px' }}>
+          📊 指標別スコア一覧
+        </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {district.scores &&
+            Object.entries(district.scores).map(([key, score]) => {
+              const meta = pillarLabels[key] || { label: key, icon: '📌' };
+              const scoreColor = getScoreColor(score);
+              const isActive = activeCategory?.key === key;
 
-                {/* 🌟 100点換算・合計スコア表示 */}
-                <div className="score-badge-group">
-                  <span
-                    className="rank-tag"
+              return (
+                <div key={key} style={{ opacity: isActive ? 1 : 0.85 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                    <span style={{ color: isActive ? '#ffd700' : '#ffffff', fontWeight: isActive ? 'bold' : 'normal' }}>
+                      {meta.icon} {meta.label}
+                    </span>
+                    <span style={{ fontWeight: 'bold', color: scoreColor }}>{score}点</span>
+                  </div>
+                  {/* スコアバー */}
+                  <div
                     style={{
-                      color: district.categoryRankMeta.color,
-                      backgroundColor: district.categoryRankMeta.bg,
-                      borderColor: district.categoryRankMeta.border,
+                      width: '100%',
+                      height: '6px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      borderRadius: '3px',
+                      overflow: 'hidden',
                     }}
                   >
-                    {district.categoryRank}ランク
-                  </span>
-                  <div className="score-total">
-                    合計 <strong>{district.categoryTotalScore}</strong> 点
+                    <div
+                      style={{
+                        width: `${score}%`,
+                        height: '100%',
+                        backgroundColor: scoreColor,
+                        boxShadow: `0 0 8px ${scoreColor}`,
+                        borderRadius: '3px',
+                        transition: 'width 0.6s ease-out',
+                      }}
+                    />
                   </div>
                 </div>
-
-                {/* 🌟 スナップショット表示 (例: AED 50点 + 防災避難所 75点) */}
-                <div className="score-snapshot" title={district.snapshotText}>
-                  {district.snapshotText}
-                </div>
-
-                <div className="card-footer-hint">
-                  タップして地図で見る ↗
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
-      </section>
+      </div>
 
-      {/* 3. スクロールガイド ＆ 23区完成マップセクション */}
-      <section ref={mapSectionRef} className="map-section-wrapper">
-        <div className="scroll-indicator">
-          <div className="indicator-text">
-            {scrollProgress < 0.75
-              ? '👇 下へスクロールすると粒子が集まり23区が完成します'
-              : '✨ 23区マップ完成！気になる区を選択してください'}
-          </div>
-          <div className="progress-bar-bg">
-            <div
-              className="progress-bar-fill"
-              style={{ width: `${Math.round(scrollProgress * 100)}%` }}
-            />
-          </div>
-        </div>
-
-        {/* 地図コンポーネント（スクロール進捗 scrollProgress を伝達） */}
-        <MapView
-          districtsData={rankedDistricts}
-          activeCategory={activeCategory}
-          externalSelectedDistrict={targetDistrict}
-          scrollProgress={scrollProgress}
-          onSelectDistrict={(district) => setSelectedDistrict(district)}
-        />
-      </section>
-
-      {/* 4. ポップアップ詳細カード */}
-      {selectedDistrict && (
-        <DistrictDetailCard
-          selectedDistrict={selectedDistrict}
-          analysis={analysis}
-          onClose={() => {
-            setSelectedDistrict(null);
-            setTargetDistrict(null);
+      {/* 外部連携アクションボタン */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '20px' }}>
+        <button
+          className="detail-card-btn"
+          onClick={handleGoogleSearch}
+          style={{
+            padding: '10px 12px',
+            borderRadius: '12px',
+            border: '1px solid rgba(255, 215, 0, 0.4)',
+            background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 140, 0, 0.2))',
+            color: '#ffd700',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
           }}
-          onJumpToComplement={(e, complement) => {
-            e.stopPropagation();
-            setSelectedDistrict(complement);
-            setTargetDistrict(complement);
+        >
+          🔍 Google検索
+        </button>
+        <button
+          className="detail-card-btn"
+          onClick={handleGoogleMaps}
+          style={{
+            padding: '10px 12px',
+            borderRadius: '12px',
+            border: '1px solid rgba(5, 213, 231, 0.4)',
+            background: 'linear-gradient(135deg, rgba(5, 213, 231, 0.2), rgba(0, 255, 159, 0.2))',
+            color: '#05d5e7',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
           }}
-        />
-      )}
+        >
+          🗺️ Google Maps
+        </button>
+      </div>
     </div>
   );
 }
