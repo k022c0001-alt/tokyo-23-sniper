@@ -1,0 +1,253 @@
+
+/* ================================================================
+   🎆 MapView : 夜空と花火・火粉のインタラクティブマップ
+   ================================================================ */
+
+/* 1. マップ全体コンテナ（漆黒の夜空グラデーション） */
+.map-view-container {
+  position: relative;
+  width: 100%;
+  min-height: 800px;
+  height: 100vh;
+  background: radial-gradient(ellipse at center, #0e1026 0%, #050611 70%, #000000 100%);
+  overflow: hidden;
+  user-select: none;
+  font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+  box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.85);
+  cursor: pointer;
+}
+
+/* 2. 背景に舞う背景火粉（スパーク） */
+.bg-ember {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: bgEmberFloat linear infinite;
+}
+
+/* 3. モード・カテゴリバナー（和風ガラスモフィズム） */
+.map-mode-bar {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 24px;
+  border-radius: 30px;
+  background: rgba(10, 12, 32, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  box-shadow: 0 0 25px rgba(255, 215, 0, 0.15), inset 0 0 15px rgba(255, 215, 0, 0.05);
+  color: #ffffff;
+  pointer-events: none;
+}
+
+.mode-badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ffd700, #ff8c00);
+  color: #000000;
+  font-weight: bold;
+}
+
+.mode-title {
+  font-size: 15px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.mode-completion {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffae19;
+}
+
+.mode-completion.is-complete {
+  color: #00ff9f;
+}
+
+/* 4. キャンバス＆ズーム切り替え */
+.map-canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.map-canvas.is-zoomed {
+  transform: scale(1.03);
+}
+
+/* 5. 区の粒子（ボタンマーカー） */
+.district-particle {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border-radius: 20px;
+  background: rgba(15, 18, 42, 0.85);
+  border: 2px solid var(--firework-color, #ffae19);
+  box-shadow: 0 0 12px var(--firework-color, rgba(255, 174, 25, 0.5));
+  color: #ffffff;
+  cursor: pointer;
+  outline: none;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+              box-shadow 0.3s ease, 
+              background 0.3s ease;
+  z-index: 10;
+}
+
+/* ホバー時：火花が強く発光 */
+.district-particle:hover {
+  transform: translate(-50%, -50%) scale(1.15) !important;
+  box-shadow: 0 0 22px var(--firework-color, #ffae19), 0 0 35px #ffffff;
+  z-index: 25;
+}
+
+/* 選択（開花）状態 */
+.district-particle.selected {
+  z-index: 30;
+  background: radial-gradient(circle, var(--firework-color, #ff2a6d) 0%, #050611 100%);
+  border-color: #ffffff;
+  box-shadow: 0 0 30px var(--firework-color, #ff2a6d), 0 0 50px #ffffff;
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+/* アイコン */
+.particle-icon {
+  font-size: 18px;
+  filter: drop-shadow(0 0 6px var(--firework-color, #ffae19));
+}
+
+/* ラベル＆スコア */
+.particle-label-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.particle-name {
+  font-size: 13px;
+  font-weight: bold;
+  color: #ffffff;
+  text-shadow: 0 0 8px var(--firework-color, #ffae19), 0 0 12px #000000;
+  white-space: nowrap;
+}
+
+.particle-score {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--firework-color, #ffd700);
+  background: rgba(0, 0, 0, 0.65);
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-top: 2px;
+  border: 1px solid var(--firework-color, #ffd700);
+}
+
+/* 6. 花火の爆発（大輪の光環リング） */
+.selected-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 2px solid var(--firework-color, #ff2a6d);
+  box-shadow: 0 0 20px var(--firework-color, #ff2a6d), inset 0 0 15px var(--firework-color, #ff2a6d);
+  animation: fireworkBurstRing 1.5s infinite ease-out;
+  pointer-events: none;
+}
+
+.selected-ring-outer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  border: 1px dashed #ffffff;
+  animation: fireworkBurstRing 1.5s infinite ease-out 0.3s;
+  pointer-events: none;
+}
+
+/* 7. 粒子を取り巻く火粉スパーク */
+.spark-dot {
+  position: absolute;
+  border-radius: 50%;
+  background-color: var(--firework-color, #ffd700);
+  box-shadow: 0 0 8px var(--firework-color, #ffd700), 0 0 12px #ffffff;
+  pointer-events: none;
+  animation: emberFlicker 1.2s infinite alternate ease-in-out;
+}
+
+/* ================================================================
+   🌟 Keyframe アニメーション定義
+   ================================================================ */
+
+/* 背景火粉の浮遊 */
+@keyframes bgEmberFloat {
+  0% {
+    transform: translateY(0px) rotate(0deg);
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(-60px) rotate(180deg);
+    opacity: 0;
+  }
+}
+
+/* 火花（火粉）のチラツキ */
+@keyframes emberFlicker {
+  0% {
+    transform: scale(0.8) translateY(0px);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(1.5) translateY(-5px);
+    opacity: 1;
+  }
+}
+
+/* 選択時に咲き誇る大輪の花火リング */
+@keyframes fireworkBurstRing {
+  0% {
+    transform: translate(-50%, -50%) scale(0.1);
+    opacity: 1;
+    border-width: 4px;
+  }
+  80% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.8);
+    opacity: 0;
+    border-width: 1px;
+  }
+}
+
+/* 選択粒子の脈動発光 */
+@keyframes pulseGlow {
+  0% {
+    box-shadow: 0 0 20px var(--firework-color, #ff2a6d), 0 0 35px #ffffff;
+  }
+  50% {
+    box-shadow: 0 0 35px var(--firework-color, #ff2a6d), 0 0 60px #ffffff;
+  }
+  100% {
+    box-shadow: 0 0 20px var(--firework-color, #ff2a6d), 0 0 35px #ffffff;
+  }
+}
